@@ -7,11 +7,14 @@ import UpdateTeamNameForm from '../../lib/teams/update-name-form';
 import AddAccountToTeamForm from '../../lib/teams/add-account-form';
 import App from '../../lib/app-wrapper';
 import Link from '../../components/link';
+import * as session from '../../lib/session';
+import PromoteTeamMemberLink from '../../lib/teams/promote-team-member-link';
 
 class Teams extends React.Component {
   state = {
     error: '',
-    activeTeam: null
+    activeTeam: null,
+    loadingCreateTeam: false,
   };
 
   componentDidMount() {
@@ -20,6 +23,18 @@ class Teams extends React.Component {
 
   componentDidUpdate() {
     this._checkUrl();
+  }
+
+  async _createTeam() {
+    this.setState({ loadingCreateTeam: true });
+    try {
+      await session.createTeam();
+      this.props.handleReload();
+    } catch (err) {
+      // Nothing yet
+    }
+
+    this.setState({ loadingCreateTeam: false });
   }
 
   _checkUrl() {
@@ -62,14 +77,13 @@ class Teams extends React.Component {
     }
 
     let inner = null;
-    const isOnPayingTeam = billingDetails && billingDetails.planId.includes('team');
-    if (!whoami.isTrialing && !isOnPayingTeam) {
+    if (!whoami.isTrialing && !whoami.canManageTeams) {
       inner = (
         <div>
           <p>Manage who is on your team.</p>
           <p className="notice info">
             <strong>Upgrade to Teams</strong> to manage your own team
-            <br/><br/>
+            <br /><br />
             <Link to="/app/subscribe/#teams" className="button button--compact">
               Upgrade to Teams
             </Link>
@@ -82,6 +96,8 @@ class Teams extends React.Component {
       // Sort the accounts to put the user first. NOTE: We're making a copy since
       // sort modifies the original.
       const accounts = [...activeTeam.accounts].sort(a => a.id === whoami.accountId ? -1 : 1);
+
+      const isCurrentUserAdmin = activeTeam.accounts.find(a => a.id === whoami.accountId).isAdmin;
 
       inner = (
         <div>
@@ -99,26 +115,54 @@ class Teams extends React.Component {
           <div className="form-control">
             <label>Team Members
               <ul>
-                {accounts.map(account => (
-                  <li key={account.id}>
-                    {account.firstName} {account.lastName}
-                    {' '}
-                    <small>({account.email})</small>
-                    {' '}
-                    {account.isAdmin ? (
-                      <strong className="small pull-right">(admin)</strong>
-                    ) : (
-                      <RemoveTeamAccountLink onRemove={this.props.handleReload}
-                                             teamId={activeTeam.id}
-                                             teamName={activeTeam.name}
-                                             className="small pull-right"
-                                             accountId={account.id}
-                                             accountName={`${account.firstName} ${account.lastName}`.trim()}>
-                        remove
-                      </RemoveTeamAccountLink>
-                    )}
-                  </li>
-                ))}
+                {accounts.map(account => {
+                  let label = '';
+                  if (account.id === activeTeam.ownerAccountId) {
+                    label = 'owner';
+                  } else if (account.isAdmin) {
+                    label = 'admin';
+                  }
+
+                  return (
+                    <li key={account.id}>
+                      <div className="d-flex d-flex-space-between">
+                      <span>
+                        {account.firstName} {account.lastName}
+                        {' '}
+                        <small>({account.email})</small>
+                        {label && <small className="super-subtle"> ({label})</small>}
+                      </span>
+                        {' '}
+                        {isCurrentUserAdmin && account.id !== whoami.accountId && (
+                          <span>
+                          <RemoveTeamAccountLink onRemove={this.props.handleReload}
+                                                 teamId={activeTeam.id}
+                                                 ownerAccountId={activeTeam.ownerAccountId}
+                                                 teamName={activeTeam.name}
+                                                 className="small error"
+                                                 accountId={account.id}
+                                                 accountName={`${account.firstName} ${account.lastName}`.trim()}>
+                              (remove)
+                            </RemoveTeamAccountLink>
+                            {' '}
+                            <PromoteTeamMemberLink onPromote={this.props.handleReload}
+                                                   teamId={activeTeam.id}
+                                                   ownerAccountId={activeTeam.ownerAccountId}
+                                                   teamName={activeTeam.name}
+                                                   className="small"
+                                                   accountId={account.id}
+                                                   isAdmin={!!activeTeam.accounts.find(a => account.id === a.id && a.isAdmin)}
+                                                   accountName={`${account.firstName} ${account.lastName}`.trim()}
+                            />
+                        </span>
+                        )}
+                        {account.id === whoami.accountId && (
+                          <small className="super-subtle">(your account)</small>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </label>
           </div>
@@ -169,13 +213,14 @@ class Teams extends React.Component {
       );
     }
 
-    return  (
+    return (
       <span className="small pull-right">(Editing)</span>
     );
   }
 
   renderTeams() {
-    const { teams } = this.props;
+    const { teams, whoami } = this.props;
+    const { loadingCreateTeam } = this.state;
 
     return (
       <div>
@@ -183,6 +228,7 @@ class Teams extends React.Component {
         <p>
           These are the teams you are on.
         </p>
+
         {teams.length ? (
           <ul>
             {teams.map(team => (
@@ -198,6 +244,12 @@ class Teams extends React.Component {
             You are not on any teams yet.
           </p>
         )}
+
+        {whoami.canManageTeams && teams.length === 0 && (
+          <button className="button" onClick={this._createTeam.bind(this)}>
+            {loadingCreateTeam ? 'Creating...' : 'Enable Team'}
+          </button>
+        )}
       </div>
     );
   }
@@ -209,7 +261,7 @@ class Teams extends React.Component {
         {activeTeam && (
           <React.Fragment>
             {this.renderEditTeam(activeTeam)}
-            <hr/>
+            <hr />
           </React.Fragment>
         )}
         {this.renderTeams()}
@@ -227,7 +279,7 @@ Teams.propTypes = {
     email: PropTypes.string.isRequired,
     canManageTeams: PropTypes.bool.isRequired,
     quantityOverride: PropTypes.number,
-    maxTeamMembers: PropTypes.number.isRequired
+    maxTeamMembers: PropTypes.number.isRequired,
   }).isRequired,
   teams: PropTypes.arrayOf(PropTypes.shape({
     id: PropTypes.string.isRequired,
@@ -236,13 +288,13 @@ Teams.propTypes = {
       firstName: PropTypes.string.isRequired,
       lastName: PropTypes.string.isRequired,
       email: PropTypes.string.isRequired,
-      id: PropTypes.string.isRequired
-    })).isRequired
-  })).isRequired
+      id: PropTypes.string.isRequired,
+    })).isRequired,
+  })).isRequired,
 };
 
 export default (pageProps) => (
   <App title="Manage Teams" subTitle="Collaborate within Insomnia">
-    {props => <Teams {...props} {...pageProps}/>}
+    {props => <Teams {...props} {...pageProps} />}
   </App>
 );

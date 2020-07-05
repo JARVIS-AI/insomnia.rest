@@ -1,0 +1,25 @@
+{
+  "name": "gatsby-source-npm-plugin",
+  "version": "1.0.0",
+  "description": "Full-featured Gatsby source plugin for NPM",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "gatsby",
+    "source",
+    "plugin",
+    "npm",
+    "api",
+    "readme"
+  ],
+  "author": "Nijiko Yonskai <nijikokun@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.19.2",
+    "gitlab-url-parse": "^1.0.0",
+    "giturl": "^1.0.1",
+    "marked": "^0.8.0",
+    "parse-github-url": "^1.0.2"
+  }
+}

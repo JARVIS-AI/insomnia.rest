@@ -1,24 +1,32 @@
 const path = require('path');
 const crypto = require('crypto');
 
-module.exports.onCreateNode = ({node, boundActionCreators}) => {
-  const {createNodeField} = boundActionCreators;
+module.exports.onCreateNode = ({ node, boundActionCreators }) => {
+  const { createNodeField } = boundActionCreators;
 
   // Add slug to Node so we can query on it
   if (node.internal.type === 'MarkdownRemark') {
     // console.log('__NODE', node);
-    const {frontmatter} = node;
+    const { frontmatter } = node;
     createNodeField({
       node,
       name: 'slug',
       value: frontmatter.slug,
     });
   }
+
+  if (node.internal.type === 'NPMPackage') {
+    createNodeField({
+      node,
+      name: 'name',
+      value: node.name,
+    });
+  }
 };
 
-module.exports.createPages = async function (data) {
-  const {graphql, boundActionCreators} = data;
-  const {createPage, createNode} = boundActionCreators;
+module.exports.createPages = async function(data) {
+  const { graphql, boundActionCreators } = data;
+  const { createPage, createNode } = boundActionCreators;
   const templateBlogPost = path.resolve('./src/templates/blog.js');
   const templateChangelog = path.resolve('./src/templates/changelog.js');
   const templatePage = path.resolve('./src/templates/page.js');
@@ -33,6 +41,7 @@ module.exports.createPages = async function (data) {
             sourceInstanceName
             childMarkdownRemark {
               frontmatter {
+                app
                 date(formatString: "MMMM DD, YYYY")
                 date_iso: date
                 channel
@@ -62,7 +71,7 @@ module.exports.createPages = async function (data) {
   const tagCounts = {};
   const seriesCounts = {};
   for (const edge of result.data.allFile.edges) {
-    const {frontmatter} = edge.node.childMarkdownRemark;
+    const { frontmatter } = edge.node.childMarkdownRemark;
     let urlPath;
     let template = templatePage;
 
@@ -78,7 +87,8 @@ module.exports.createPages = async function (data) {
         seriesCounts[s] = (seriesCounts[s] || 0) + 1;
       }
     } else if (edge.node.sourceInstanceName === 'changelog') {
-      urlPath = `/changelog/${frontmatter.slug}`;
+      const app = frontmatter.app === 'com.insomnia.designer' ? 'designer' : 'core';
+      urlPath = `/changelog/${app}/${frontmatter.slug}`;
       template = templateChangelog;
     } else if (edge.node.sourceInstanceName === 'page') {
       urlPath = `/${frontmatter.slug}`;
@@ -90,20 +100,21 @@ module.exports.createPages = async function (data) {
       component: template,
       context: {
         // So we can use the $slug variable in GraphQL queries
-        slug: frontmatter.slug || ''
+        slug: frontmatter.slug || '',
+        app: frontmatter.app || '',
       },
     });
   }
 
   const tagCountObjects = Object.keys(tagCounts)
-    .map(tag => ({tag, count: tagCounts[tag]}))
+    .map(tag => ({ tag, count: tagCounts[tag] }))
     .sort((a, b) => b.count - a.count);
 
   const seriesCountObjects = Object.keys(seriesCounts)
-    .map(series => ({series, count: seriesCounts[series]}))
+    .map(series => ({ series, count: seriesCounts[series] }))
     .sort((a, b) => b.count - a.count);
 
-  for (const {tag, count} of tagCountObjects) {
+  for (const { tag, count } of tagCountObjects) {
     createPage({
       path: `/tags/${tag}`,
       component: templateTag,
@@ -131,7 +142,7 @@ module.exports.createPages = async function (data) {
     });
   }
 
-  for (const {series, count} of seriesCountObjects) {
+  for (const { series, count } of seriesCountObjects) {
     createPage({
       path: `/series/${series}`,
       component: templateSeries,
@@ -158,4 +169,28 @@ module.exports.createPages = async function (data) {
       },
     });
   }
+
+  const template = path.resolve('./src/templates/plugin.js');
+  const results = await graphql(`
+    query myQuery {
+      allNpmPackage {
+        edges {
+          node {
+            name
+          }
+        }
+      }
+    }
+  `);
+
+  // Process data into pages.
+  results.data.allNpmPackage.edges.forEach(({ node: pkg }) => {
+    createPage({
+      path: `/plugins/${pkg.name}`,
+      component: template,
+      context: {
+        slug: pkg.name || '',
+      },
+    });
+  });
 };

@@ -16,71 +16,18 @@ function endDate() {
   try {
     // Do this first in case another one fails
     const changelog = generateChangelog();
-    fs.writeFileSync(path.join(dirChangelog, 'changelog.json'), JSON.stringify(changelog));
-    fs.writeFileSync(path.join(dirAssets, 'changelog.json'), JSON.stringify(changelog));
+    fs.writeFileSync(path.join(dirChangelog, 'changelog.json'), JSON.stringify(changelog, null, '\t'));
+    fs.writeFileSync(path.join(dirAssets, 'changelog.json'), JSON.stringify(changelog, null, '\t'));
 
     // Fetch contributors
     const contributors = await fetchContributors();
     const contributorsBody = JSON.stringify(contributors, null, '\t');
     fs.writeFileSync(path.join(dirAssets, 'contributors.json'), contributorsBody);
-
-    // Fetch repo stats
-    const repoStats = await fetchRepositoryStats();
-    const repoStatsBody = JSON.stringify(repoStats, null, '\t');
-    fs.writeFileSync(path.join(dirAssets, 'repository.json'), repoStatsBody);
-
-    // Do Baremetrics (most likely to fail)
-    const baremetricsData = await fetchBaremetrics();
-    const planData = await fetchPlans();
-    const metricsBody = JSON.stringify({
-      metrics: baremetricsData.metrics,
-      plans: planData
-    }, null, '\t');
-
-    fs.writeFileSync(path.join(dirAssets, 'baremetrics.json'), metricsBody);
     console.log('Wrote metrics to ' + dirAssets);
   } catch (err) {
     console.log('Failed to fetch metrics:', err.message);
   }
 })();
-
-function fetchBaremetrics() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: 'GET',
-      url: 'https://api.baremetrics.com/v1/metrics',
-      qs: { start_date: '2016-12-01', end_date: endDate() },
-      headers: { 'Authorization': `Bearer ${process.env.BAREMETRICS_KEY}` }
-    };
-
-    request(options, function(err, response, body) {
-      if (response.statusCode !== 200) {
-        return reject(new Error('Metrics request failed: ' + response.body));
-      }
-
-      resolve(JSON.parse(body));
-    });
-  });
-}
-
-function fetchPlans() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: 'GET',
-      url: 'https://api.baremetrics.com/v1/metrics/mrr/plans',
-      qs: { start_date: '2018-04-28', end_date: '2018-04-29' },
-      headers: { 'Authorization': `Bearer ${process.env.BAREMETRICS_KEY}` }
-    };
-
-    request(options, function(err, response, body) {
-      if (response.statusCode !== 200) {
-        return reject(new Error('Plans request failed: ' + response.body));
-      }
-
-      resolve(JSON.parse(body));
-    });
-  });
-}
 
 async function fetchContributors() {
   return new Promise((resolve, reject) => {
@@ -91,7 +38,7 @@ async function fetchContributors() {
         method: 'GET',
         url: 'https://gschier:@api.github.com/repos/getinsomnia/insomnia/contributors',
         qs: { page },
-        headers: { 'User-Agent': `insomnia/website` }
+        headers: { 'User-Agent': `insomnia/website` },
       };
 
       request(options, function(err, response, body) {
@@ -116,24 +63,6 @@ async function fetchContributors() {
   });
 }
 
-function fetchRepositoryStats() {
-  return new Promise((resolve, reject) => {
-    const options = {
-      method: 'GET',
-      url: 'https://gschier:@api.github.com/repos/getinsomnia/insomnia',
-      headers: { 'User-Agent': `insomnia/website` }
-    };
-
-    request(options, function(err, response, body) {
-      if (response.statusCode !== 200) {
-        return reject(new Error('Repository stats request failed: ' + response.body));
-      }
-
-      resolve(JSON.parse(body));
-    });
-  });
-}
-
 function generateChangelog() {
   const root = path.join(__dirname, '..', 'content', 'changelog');
   const items = [];
@@ -144,14 +73,56 @@ function generateChangelog() {
     }
     const content = fs.readFileSync(p, 'utf8');
     const frontmatter = matter(content).data;
+    const isLegacyVersion = frontmatter.slug.match(/^\d\./);
+    const version = frontmatter.slug;
+
+    let downloads;
+
+    if (isLegacyVersion && frontmatter.app === 'com.insomnia.app') {
+      const root = `https://github.com/Kong/insomnia/releases/download/v${version}`;
+      downloads = {
+        root,
+        mac: `${root}/Insomnia-${version}.dmg`,
+        macZip: `${root}/Insomnia-${version}-mac.zip`,
+        windows: `${root}/Insomnia.Setup.${version}.exe`,
+        linux: `${root}/Insomnia-${version}.AppImage`,
+        ubuntu: `${root}/insomnia_${version}_amd64.deb`,
+        release: `https://github.com/Kong/insomnia/releases/tag/v${version}`,
+      };
+    } else if (frontmatter.app === 'com.insomnia.app') {
+      const root = `https://github.com/Kong/insomnia/releases/download/core@${version}`;
+      downloads = {
+        root,
+        mac: `${root}/Insomnia.Core-${version}.dmg`,
+        macZip: `${root}/Insomnia.Core-${version}.zip`,
+        windows: `${root}/Insomnia.Core-${version}.exe`,
+        linux: `${root}/Insomnia.Core-${version}.AppImage`,
+        ubuntu: `${root}/Insomnia.Core-${version}.deb`,
+        release: `https://github.com/Kong/insomnia/releases/tag/core@${version}`,
+      };
+    } else {
+      const root = `https://github.com/Kong/insomnia/releases/download/designer@${version}`;
+      downloads = {
+        root,
+        mac: `${root}/Insomnia.Designer-${version}.dmg`,
+        macZip: `${root}/Insomnia.Designer-${version}.zip`,
+        windows: `${root}/Insomnia.Designer-${version}.exe`,
+        linux: `${root}/Insomnia.Designer-${version}.AppImage`,
+        ubuntu: `${root}/Insomnia.Designer-${version}.deb`,
+        release: `https://github.com/Kong/insomnia/releases/tag/designer@${version}`,
+      };
+    }
+
     items.push({
+      downloads,
+      app: frontmatter.app,
       date: frontmatter.date,
       version: frontmatter.slug,
       channel: frontmatter.channel || 'stable',
       link: frontmatter.link || null,
       major: frontmatter.major || [],
       minor: frontmatter.minor || [],
-      fixes: frontmatter.fixes || []
+      fixes: frontmatter.fixes || [],
     });
   }
   return items.sort((a, b) => (

@@ -1,14 +1,15 @@
 import React from 'react';
-import Link from '../components/link';
+import { graphql } from 'gatsby';
 import { links } from '../config';
 import ChangelogLink from '../components/changelog-link';
 import ChangelogListItem from '../components/changelog-list-item';
+import Link from '../components/link';
 
 export default ({
-  data: {
-    allFile: { edges }
-  }
-}) => (
+                  data: {
+                    allFile: { edges },
+                  },
+                }) => (
   <React.Fragment>
     <header className="container header--big">
       <div className="row">
@@ -31,17 +32,17 @@ export default ({
     {edges
       .filter(
         ({
-          node: {
-            childMarkdownRemark: { frontmatter }
-          }
-        }) => frontmatter.channel !== "beta" && frontmatter.channel !== "alpha"
+           node: {
+             childMarkdownRemark: { frontmatter },
+           },
+         }) => frontmatter.channel !== 'beta' && frontmatter.channel !== 'alpha',
       )
       .sort((a, b) => {
         const tsA = new Date(
-          a.node.childMarkdownRemark.frontmatter.date_iso
+          a.node.childMarkdownRemark.frontmatter.date_iso,
         ).getTime();
         const tsB = new Date(
-          b.node.childMarkdownRemark.frontmatter.date_iso
+          b.node.childMarkdownRemark.frontmatter.date_iso,
         ).getTime();
         return tsB - tsA;
       })
@@ -50,7 +51,11 @@ export default ({
           <header className="row">
             <div className="col-12">
               <ChangelogLink frontmatter={frontmatter}>
-                <h1>Insomnia v{frontmatter.slug}</h1>
+                <h1>
+                  Insomnia {frontmatter.app === 'com.insomnia.designer' ? 'Designer' : ''}
+                  {' '}
+                  <code>{frontmatter.slug}</code>
+                </h1>
               </ChangelogLink>
               <div className="meta">
                 <time dateTime={frontmatter.date}>{frontmatter.date}</time>
@@ -60,9 +65,9 @@ export default ({
           <section>
             <div className="row">
               <div className="col-12 article--preview__content">
-                <p>{excerpt || `Version ${frontmatter.slug} is here!`}</p>
+                {excerpt && <p className="mt-0">{excerpt}</p>}
                 {frontmatter.major && (
-                  <ul className="ul--decorated">
+                  <ul className="ul--decorated m-0">
                     {frontmatter.major.map(c => (
                       <li key={c} className="li--major">
                         <ChangelogListItem text={c} />
@@ -118,13 +123,14 @@ export default ({
 );
 
 export const pageQuery = graphql`
-  query ChangelogIndexQuery {
+  query ChangelogCoreIndexQuery {
     allFile(filter: { sourceInstanceName: { eq: "changelog" } }) {
       edges {
         node {
           childMarkdownRemark {
             excerpt(pruneLength: 240)
             frontmatter {
+              app
               date(formatString: "MMMM DD, YYYY")
               date_iso: date
               channel
@@ -132,7 +138,6 @@ export const pageQuery = graphql`
               link
               major
               minor
-              slug
               slug
               summary
             }

@@ -1,10 +1,10 @@
 import React from 'react';
+import { graphql } from 'gatsby';
 import DownloadButton from '../components/download-button';
 import SocialCards from '../components/social-cards';
 import ShareButtons from '../partials/share-buttons';
 import Title from '../partials/title';
 import Link from '../components/link';
-import Contributors from '../partials/contributors';
 
 export default class BlogTemplate extends React.Component {
   render() {

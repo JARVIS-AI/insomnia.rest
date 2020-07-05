@@ -1,21 +1,30 @@
 const siteMetadata = {
   title: 'Insomnia',
-  description: 'A powerful REST API Client with cookie management, ' +
+  description:
+    'A powerful REST API Client with cookie management, ' +
     'environment variables, code generation, and authentication for Mac, ' +
     'Window, and Linux',
   siteUrl: 'https://insomnia.rest/',
   shortName: 'Insomnia',
-  name: 'Insomnia REST Client',
+  name: 'Insomnia',
   author: 'Gregory Schier',
-  copyright: 'Floating Keyboard Software Inc.',
+  copyright: 'Kong, Inc.',
   copyrightURL: 'https://floatingkeyboard.com'
 };
 
 module.exports = {
   siteMetadata,
   plugins: [
-    'gatsby-plugin-react-next',
+    'gatsby-plugin-layout',
     'gatsby-plugin-react-helmet',
+    {
+      resolve: 'gatsby-source-npm-plugin',
+      options: {
+        query: 'insomnia',
+        filter: 'insomnia-plugin-',
+        perFetch: 20
+      }
+    },
     {
       resolve: 'gatsby-plugin-less',
       options: {
@@ -99,10 +108,17 @@ module.exports = {
             ...rest
           };
         },
-        feeds: [
-          feedOptions('blog'),
-          feedOptions('changelog')
-        ]
+        feeds: [feedOptions('blog'), feedOptions('changelog')]
+      }
+    },
+    {
+      resolve: `gatsby-plugin-google-analytics`,
+      options: {
+        trackingId: 'UA-8499472-33',
+        head: false,
+        anonymize: true,
+        respectDNT: true,
+        pageTransitionDelay: 0
       }
     }
   ]
@@ -114,7 +130,9 @@ function feedOptions(name) {
     site_url: siteMetadata.siteUrl,
     title: 'Insomnia Feed',
     serialize: result => {
-      const { query: { site, allFile } } = result;
+      const {
+        query: { site, allFile }
+      } = result;
       // NOTE: We should be getting siteMetadata from the query results
       // but the feed plugin is too shitty to work with multiple feeds.
       // Check on this later
@@ -125,7 +143,14 @@ function feedOptions(name) {
           return tsB.getTime() - tsA.getTime();
         })
         .map(({ node: { childMarkdownRemark: { html, frontmatter } } }) => {
-          const urlPath = `${name}/${frontmatter.slug}`;
+          let urlPath = `${name}/${frontmatter.slug}`;
+
+          if (frontmatter.app === 'com.insomnia.app') {
+            urlPath = `${name}/core/${frontmatter.slug}`;
+          } else if (frontmatter.app === 'com.insomnia.designer') {
+            urlPath = `${name}/designer/${frontmatter.slug}`;
+          }
+
           return {
             ...frontmatter,
             description: html,
@@ -142,6 +167,7 @@ function feedOptions(name) {
               childMarkdownRemark {
                 html
                 frontmatter {
+                  app
                   date
                   slug
                   title

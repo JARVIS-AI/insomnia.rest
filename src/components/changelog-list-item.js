@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from './link';
 
 const ChangelogListItem = ({text}) => {
   const match = text.match(/\(PR:(\d+)(:([^)]+))?\)/);
@@ -11,7 +10,7 @@ const ChangelogListItem = ({text}) => {
       <React.Fragment>
         {text.replace(match[0], '')}
         {' '}
-        <a href={`https://github.com/getinsomnia/insomnia/pull/${prNumber}`} target="_blank">
+        <a href={`https://github.com/Kong/insomnia/pull/${prNumber}`} target="_blank">
           (#{prNumber}{userString})
         </a>
       </React.Fragment>
